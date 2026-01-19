@@ -1,5 +1,9 @@
 
 export function App() {
-  return <div>My App</div>;
+  return (
+    <div className="min-h-screen bg-slate-50">
+      kfgokfkn
+    </div>
+  )
 }
 
