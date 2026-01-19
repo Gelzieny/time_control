@@ -74,6 +74,124 @@ export function App() {
     }
   };
 
+  // Função para converter saldo em minutos
+  const timeToMinutes = (time: string): number => {
+    if (!time || time === '00:00') return 0;
+    const isNegative = time.startsWith('-');
+    const cleanTime = time.replace('-', '');
+    const [hours, minutes] = cleanTime.split(':').map(Number);
+    const totalMinutes = (hours * 60) + minutes;
+    return isNegative ? -totalMinutes : totalMinutes;
+  };
+
+  // Função para converter minutos em formato de hora
+  const minutesToTime = (minutes: number): string => {
+    const isNegative = minutes < 0;
+    const absMinutes = Math.abs(minutes);
+    const hours = Math.floor(absMinutes / 60);
+    const mins = absMinutes % 60;
+    const formattedTime = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+    return isNegative ? `-${formattedTime}` : formattedTime;
+  };
+
+  // Função para calcular horas trabalhadas no dia
+  const calculateWorkedMinutes = (entry: TimeEntry): number => {
+    if (!entry.entrada1 || entry.entrada1 === '--:--') return 0;
+    
+    let totalMinutes = 0;
+    
+    // Primeira entrada/saída
+    if (entry.entrada1 && entry.saida1 && entry.entrada1 !== '--:--' && entry.saida1 !== '--:--') {
+      const entrada1Minutes = timeToMinutes(entry.entrada1);
+      const saida1Minutes = timeToMinutes(entry.saida1);
+      totalMinutes += (saida1Minutes - entrada1Minutes);
+    }
+    
+    // Segunda entrada/saída
+    if (entry.entrada2 && entry.saida2 && entry.entrada2 !== '--:--' && entry.saida2 !== '--:--') {
+      const entrada2Minutes = timeToMinutes(entry.entrada2);
+      const saida2Minutes = timeToMinutes(entry.saida2);
+      totalMinutes += (saida2Minutes - entrada2Minutes);
+    }
+    
+    return totalMinutes;
+  };
+
+  // Função para calcular o saldo do dia baseado no motivo
+  const calculateDayBalance = (entry: TimeEntry): number => {
+    const DAILY_WORK_MINUTES = 8 * 60;
+    const workedMinutes = calculateWorkedMinutes(entry);
+    const isWeekend = entry.diaSemana === 'Dom' || entry.diaSemana === 'Sab';
+    
+    // Falta: -8 horas
+    if (entry.motivo === 'Falta') {
+      return -DAILY_WORK_MINUTES;
+    }
+    
+    // Férias, Atestado, Feriado: 0 (conta como dia completo)
+    if (entry.motivo === 'Ferias' || entry.motivo === 'Atestado' || entry.feriado) {
+      return 0;
+    }
+    
+    // Ponto facultativo: equivale a 8 horas trabalhadas
+    if (entry.motivo === 'Ponto facultativo') {
+      return 0;
+    }
+    
+    // Compensação de horas: déficit será coberto por horas positivas
+    if (entry.motivo === 'Compensação de horas') {
+      const deficit = DAILY_WORK_MINUTES - workedMinutes;
+      return deficit > 0 ? 0 : workedMinutes - DAILY_WORK_MINUTES;
+    }
+    
+    // Final de semana: adiciona todas as horas trabalhadas
+    if (isWeekend) {
+      return workedMinutes;
+    }
+    
+    // Dia normal: diferença entre trabalhado e 8 horas
+    return workedMinutes - DAILY_WORK_MINUTES;
+  };
+
+  // Calcular horas positivas, negativas e saldo final
+  const calculateStats = () => {
+    let positiveMinutes = 0;
+    let negativeMinutes = 0;
+    let totalCompensationUsed = 0;
+
+    entries.forEach(entry => {
+      const balance = calculateDayBalance(entry);
+      
+      // Calcular compensação usada
+      if (entry.motivo === 'Compensação de horas') {
+        const workedMinutes = calculateWorkedMinutes(entry);
+        const deficit = (8 * 60) - workedMinutes;
+        if (deficit > 0) {
+          totalCompensationUsed += deficit;
+        }
+      }
+      
+      // Acumular horas positivas e negativas
+      if (balance > 0) {
+        positiveMinutes += balance;
+      } else if (balance < 0) {
+        negativeMinutes += Math.abs(balance);
+      }
+    });
+
+    // Subtrair compensações das horas positivas
+    const finalPositive = Math.max(0, positiveMinutes - totalCompensationUsed);
+    const finalBalance = finalPositive - negativeMinutes;
+
+    return {
+      horasPositivas: minutesToTime(finalPositive),
+      horasNegativas: minutesToTime(negativeMinutes),
+      saldoFinal: minutesToTime(finalBalance)
+    };
+  };
+
+  const stats = calculateStats();
+
   if (loading) {
     return (
       <div className="app-container">
@@ -122,9 +240,9 @@ export function App() {
         )}
 
         <StatsCards
-          horasPositivas="00:00"
-          horasNegativas="00:00"
-          saldoFinal="00:00"
+          horasPositivas={stats.horasPositivas}
+          horasNegativas={stats.horasNegativas}
+          saldoFinal={stats.saldoFinal}
         />
 
         <MonthNavigator

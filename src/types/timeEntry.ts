@@ -10,6 +10,8 @@ export interface TimeEntry {
   ocorrencia?: string;
   motivo?: string;
   diaSemana: 'Dom' | 'Seg' | 'Ter' | 'Qua' | 'Qui' | 'Sex' | 'Sab';
+  compensationUsed?: number; // Minutos de horas positivas usados em compensação
+  feriado?: boolean; // Se é feriado
 }
 
 export type TimeEntryFormData = Omit<TimeEntry, 'id'>;
